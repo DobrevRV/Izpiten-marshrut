@@ -1,332 +1,95 @@
 package bg.radidobrev.izpitenmarshrut;
 
-import android.Manifest;
 import android.app.Activity;
-import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.Gravity;
-import android.view.ViewGroup;
+import android.graphics.Color;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.osmdroid.config.Configuration;
-import org.osmdroid.events.MapEventsReceiver;
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
-import org.osmdroid.util.GeoPoint;
-import org.osmdroid.views.MapView;
-import org.osmdroid.views.overlay.MapEventsOverlay;
-import org.osmdroid.views.overlay.Marker;
-import org.osmdroid.views.overlay.Polyline;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Locale;
+import android.widget.ScrollView;
+import android.view.ViewGroup;
+import android.util.Log;
 
 public class MainActivity extends Activity {
 
-    private MapView map;
+    private LinearLayout layout;
     private TextView status;
-    private LocationManager locationManager;
-    private LocationListener locationListener;
-    private GeoPoint currentPosition;
-    private Marker carMarker;
-    private Marker destinationMarker;
-    private Polyline routeLine;
-
-    private final GeoPoint kazanlak =
-            new GeoPoint(42.6194, 25.3930);
-
-    private static final int GPS_PERMISSION = 42;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        try {
-            initializeApp();
-        } catch (Throwable error) {
-            showFatalError(error);
-        }
-    }
+        layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(25, 50, 25, 25);
+        layout.setBackgroundColor(Color.rgb(15, 23, 42));
 
-    private void initializeApp() {
-        Configuration.getInstance()
-                .setUserAgentValue(getPackageName());
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(12, 24, 12, 12);
-        root.setBackgroundColor(Color.rgb(15, 23, 42));
-
-        TextView heading = new TextView(this);
-        heading.setText("ИЗПИТЕН МАРШРУТ\nРАДИ ДОБРЕВ");
-        heading.setTextColor(Color.WHITE);
-        heading.setTextSize(21);
-        heading.setGravity(Gravity.CENTER);
-        root.addView(heading);
+        TextView title = new TextView(this);
+        title.setText("ИЗПИТЕН МАРШРУТ\nРАДИ ДОБРЕВ");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(24);
+        layout.addView(title);
 
         status = new TextView(this);
-        status.setText(
-            "Казанлък | Натисни МОЕТО МЕСТОПОЛОЖЕНИЕ"
-        );
+        status.setText("\nДиагностика: началният екран работи.\n");
         status.setTextColor(Color.WHITE);
-        status.setTextSize(15);
-        status.setPadding(0, 12, 0, 12);
-        root.addView(status);
-
-        map = new MapView(this);
-        map.setTileSource(TileSourceFactory.MAPNIK);
-        map.setMultiTouchControls(true);
-        map.getController().setZoom(15.0);
-        map.getController().setCenter(kazanlak);
-
-        root.addView(map, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-        ));
-
-        map.getOverlays().add(
-            new MapEventsOverlay(new MapEventsReceiver() {
-                @Override
-                public boolean singleTapConfirmedHelper(GeoPoint p) {
-                    return false;
-                }
-
-                @Override
-                public boolean longPressHelper(GeoPoint p) {
-                    calculateRoute(p);
-                    return true;
-                }
-            })
-        );
-
-        addButton(root, "МОЕТО МЕСТОПОЛОЖЕНИЕ",
-                () -> startGps());
-
-        addButton(root, "ПОКАЖИ КАЗАНЛЪК", () -> {
-            map.getController().setCenter(kazanlak);
-            map.getController().setZoom(15.0);
-        });
-
-        addButton(root, "ИЗЧИСЛИ МАРШРУТ", () -> {
-            message("Задръж пръст върху улица на картата.");
-        });
-
-        addButton(root, "ИЗЧИСТИ МАРШРУТА",
-                () -> clearRoute());
-
-        setContentView(root);
-    }
-
-    private void addButton(
-            LinearLayout root,
-            String label,
-            Runnable action) {
+        status.setTextSize(18);
+        layout.addView(status);
 
         Button button = new Button(this);
-        button.setText(label);
-        button.setOnClickListener(v -> action.run());
-        root.addView(button);
+        button.setText("ЗАРЕДИ КАРТАТА");
+        button.setOnClickListener(v -> loadMap());
+        layout.addView(button);
+
+        setContentView(layout);
     }
 
-    private void message(String text) {
-        runOnUiThread(() -> {
-            if (status != null) {
-                status.setText(text);
-            }
-        });
-    }
-
-    private void showFatalError(Throwable error) {
-        Log.e("IzpitenMarshrut", "Startup crash", error);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Color.WHITE);
-
-        TextView details = new TextView(this);
-        details.setTextColor(Color.RED);
-        details.setTextSize(15);
-        details.setPadding(24, 40, 24, 24);
-
-        details.setText(
-            "ГРЕШКА ПРИ СТАРТИРАНЕ\n\n" +
-            Log.getStackTraceString(error)
-        );
-
-        scroll.addView(details);
-        setContentView(scroll);
-    }
-
-    private boolean hasPermission() {
-        return checkSelfPermission(
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        || checkSelfPermission(
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void startGps() {
-        if (!hasPermission()) {
-            requestPermissions(new String[]{
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            }, GPS_PERMISSION);
-            return;
-        }
-
-        locationManager = (LocationManager)
-                getSystemService(LOCATION_SERVICE);
-
-        if (locationManager == null ||
-            !locationManager.isProviderEnabled(
-                LocationManager.GPS_PROVIDER)) {
-
-            message("Включи GPS на телефона.");
-            return;
-        }
-
-        if (locationListener != null) {
-            locationManager.removeUpdates(locationListener);
-        }
-
-        locationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                currentPosition = new GeoPoint(
-                    location.getLatitude(),
-                    location.getLongitude()
-                );
-
-                if (carMarker == null) {
-                    carMarker = new Marker(map);
-                    carMarker.setTitle("Моят автомобил");
-                    map.getOverlays().add(carMarker);
-                }
-
-                carMarker.setPosition(currentPosition);
-                map.getController().animateTo(currentPosition);
-                map.invalidate();
-
-                message(
-                    "GPS работи. Задръж върху улица за маршрут."
-                );
-            }
-        };
+    private void loadMap() {
+        status.setText("Опит за зареждане на картата...");
 
         try {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                2000L,
-                2f,
-                locationListener
+            org.osmdroid.config.Configuration.getInstance()
+                .setUserAgentValue(getPackageName());
+
+            org.osmdroid.views.MapView map =
+                new org.osmdroid.views.MapView(this);
+
+            map.setTileSource(
+                org.osmdroid.tileprovider.tilesource
+                    .TileSourceFactory.MAPNIK
             );
 
-            message("Изчакване на GPS сигнал...");
-        } catch (Exception error) {
-            message("GPS грешка: " + error.getMessage());
+            map.setMultiTouchControls(true);
+            map.getController().setZoom(15.0);
+            map.getController().setCenter(
+                new org.osmdroid.util.GeoPoint(42.6194, 25.3930)
+            );
+
+            layout.addView(map,
+                new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0, 1f
+                )
+            );
+
+            status.setText("Картата е заредена успешно.");
+
+        } catch (Throwable e) {
+            Log.e("RouteDiagnostic", "Map crash", e);
+
+            ScrollView scroll = new ScrollView(this);
+            TextView error = new TextView(this);
+            error.setTextColor(Color.RED);
+            error.setTextSize(14);
+            error.setPadding(20, 30, 20, 20);
+            error.setText("ГРЕШКА ПРИ КАРТАТА:\n\n" +
+                Log.getStackTraceString(e));
+
+            scroll.addView(error);
+            setContentView(scroll);
         }
     }
-
-    private void calculateRoute(GeoPoint destination) {
-        if (currentPosition == null) {
-            message("Първо включи GPS и изчакай сигнал.");
-            return;
-        }
-
-        final GeoPoint start = new GeoPoint(
-            currentPosition.getLatitude(),
-            currentPosition.getLongitude()
-        );
-
-        message("Изчисляване на маршрута...");
-
-        new Thread(() -> {
-            HttpURLConnection connection = null;
-
-            try {
-                String coordinates =
-                    start.getLongitude() + "," +
-                    start.getLatitude() + ";" +
-                    destination.getLongitude() + "," +
-                    destination.getLatitude();
-
-                String address =
-                    "https://router.project-osrm.org/route/v1/driving/" +
-                    coordinates +
-                    "?overview=full&geometries=geojson";
-
-                connection = (HttpURLConnection)
-                    new URL(address).openConnection();
-
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(15000);
-                connection.setReadTimeout(15000);
-                connection.setRequestProperty(
-                    "User-Agent",
-                    "IzpitenMarshrut-RadiDobrev/2.3"
-                );
-
-                int httpCode = connection.getResponseCode();
-
-                if (httpCode != 200) {
-                    throw new Exception(
-                        "HTTP грешка: " + httpCode
-                    );
-                }
-
-                BufferedReader reader =
-                    new BufferedReader(
-                        new InputStreamReader(
-                            connection.getInputStream()
-                        )
-                    );
-
-                StringBuilder response = new StringBuilder();
-                String line;
-
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                reader.close();
-
-                JSONObject data =
-                    new JSONObject(response.toString());
-
-                String resultCode =
-                    data.optString("code", "Unknown");
-
-                if (!"Ok".equals(resultCode)) {
-                    throw new Exception(
-                        "Сървър: " + resultCode
-                    );
-                }
-
-                JSONArray routes = data.getJSONArray("routes");
-
-                if (routes.length() == 0) {
-                    throw new Exception("Няма намерен маршрут.");
-                }
-
-                JSONObject route = routes.getJSONObject(0);
-
-                JSONArray points = route
-                    .getJSONObject("geometry")
-                    .getJSONArray("coordinates");
+}coordinates");
 
                 ArrayList<GeoPoint> path =
                     new ArrayList<>();
