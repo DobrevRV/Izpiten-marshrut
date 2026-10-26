@@ -157,47 +157,21 @@ public class MainActivity extends Activity {
                     currentPosition.getLatitude() + ";" +
                     destination.getLongitude() + "," +
                     destination.getLatitude();
-                String query = coords + "?overview=full&geometries=geojson";
-                String[] servers = {
-                    "https://router.project-osrm.org/route/v1/driving/",
-                    "https://routing.openstreetmap.de/routed-car/route/v1/driving/"
-                };
-                JSONObject data = null;
-                String lastError = "Няма отговор";
-                for (String server : servers) {
-                    try {
-                        connection = (HttpURLConnection) new URL(server + query).openConnection();
-                        connection.setRequestProperty("User-Agent", "IzpitenMarshrutRadiDobrev/2.2 (Android; training navigation)");
-                        connection.setRequestProperty("Accept", "application/json");
-                        connection.setConnectTimeout(15000);
-                        connection.setReadTimeout(15000);
-                        int http = connection.getResponseCode();
-                        if (http != 200) {
-                            lastError = "HTTP " + http;
-                            continue;
-                        }
-                        try (BufferedReader reader = new BufferedReader(
-                                new InputStreamReader(connection.getInputStream()))) {
-                            StringBuilder json = new StringBuilder();
-                            String line;
-                            while ((line = reader.readLine()) != null) json.append(line);
-                            data = new JSONObject(json.toString());
-                        }
-                        if (!"Ok".equals(data.optString("code"))) {
-                            lastError = data.optString("code", "Грешка от сървъра");
-                            data = null;
-                            continue;
-                        }
-                        break;
-                    } catch (Exception requestError) {
-                        lastError = requestError.getClass().getSimpleName() + ": " +
-                            requestError.getMessage();
-                    } finally {
-                        if (connection != null) connection.disconnect();
-                        connection = null;
-                    }
-                }
-                if (data == null) throw new Exception(lastError);
+                String url = "https://router.project-osrm.org/route/v1/driving/" +
+                    coords + "?overview=full&geometries=geojson";
+                connection = (HttpURLConnection) new URL(url).openConnection();
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(12000);
+                if (connection.getResponseCode() != 200)
+                    throw new Exception("Сървърът не отговори успешно.");
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream()));
+                StringBuilder json = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) json.append(line);
+                reader.close();
+
+                JSONObject data = new JSONObject(json.toString());
                 JSONArray routes = data.getJSONArray("routes");
                 if (routes.length() == 0) throw new Exception("Няма намерен маршрут.");
                 JSONObject route = routes.getJSONObject(0);
@@ -226,9 +200,7 @@ public class MainActivity extends Activity {
                         "Маршрут: %.1f км. Синята линия показва пътя.", km));
                 });
             } catch (Exception e) {
-                String detail = e.getMessage();
-                message("Грешка при маршрута: " +
-                    (detail == null ? e.getClass().getSimpleName() : detail));
+                message("Маршрутът не се зареди. Провери интернет или избери друга точка.");
             } finally {
                 if (connection != null) connection.disconnect();
             }
@@ -257,10 +229,8 @@ public class MainActivity extends Activity {
         if (map != null) map.onResume();
     }
     @Override protected void onPause() {
-        if (locationManager != null && locationListener != null) {
+        if (locationManager != null && locationListener != null)
             locationManager.removeUpdates(locationListener);
-            locationListener = null;
-        }
         if (map != null) map.onPause();
         super.onPause();
     }
